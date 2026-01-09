@@ -4,7 +4,7 @@ A Chrome extension that allows you to save YouTube video thumbnails and titles t
 
 ## Features
 
-- **Save Thumbnails**: Click a button on YouTube video pages to save thumbnails and titles
+- **Save Thumbnails**: Right-click on any video thumbnail to save it with its title
 - **Grid View**: Browse all saved thumbnails in a beautiful grid layout
 - **Tag Filtering**: Filter saved thumbnails by tags (auto-extracted from YouTube)
 - **Title Toggle**: Show or hide video titles on thumbnails
@@ -74,13 +74,15 @@ thumbnail-saver/
 
 ## Usage
 
-1. Visit any YouTube video page
-2. Click the "Save Thumbnail" button that appears in the top right
+1. Browse YouTube (homepage, search results, playlists, etc.)
+2. Right-click on any video thumbnail and select "Save Thumbnail" from the context menu
 3. Click the extension icon to view all saved thumbnails
 4. Use the filter dropdown to filter by tags
 5. Toggle "Show Title" to show/hide titles on thumbnails
 6. Click any thumbnail to open the video in a new tab
 7. Click the trash icon to delete saved thumbnails
+
+For more detailed usage instructions, see [USAGE.md](./USAGE.md).
 
 ## Building
 

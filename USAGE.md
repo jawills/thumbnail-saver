@@ -2,25 +2,12 @@
 
 ## Saving Thumbnails
 
-You can save thumbnails in two ways:
-
-### Method 1: Right-Click Context Menu (Recommended)
 1. **Browse YouTube** (homepage, search results, playlists, etc.)
 2. **Right-click on any video thumbnail** (the video image)
 3. **Select "Save Thumbnail"** from the context menu
 4. A notification will appear confirming the thumbnail was saved
    - Works on any YouTube page with video thumbnails
    - No need to visit the watch page!
-
-### Method 2: Save Button on Watch Page
-1. **Visit a YouTube video page** (e.g., `https://www.youtube.com/watch?v=VIDEO_ID`)
-2. **Look for the red "Save Thumbnail" button** in the top-right corner of the page
-   - The button appears automatically when you're on a video page
-   - It's positioned near the top-right, fixed on the page
-3. **Click the "Save Thumbnail" button**
-   - The button will change to "Saving..." while processing
-   - Once saved, it will show "✓ Saved" in green
-   - The video title, thumbnail URL, and tags are automatically extracted and saved
 
 ## Viewing Saved Thumbnails
 
@@ -40,11 +27,6 @@ You can save thumbnails in two ways:
 3. Same controls as the full page viewer, but in a smaller window
 
 ## Troubleshooting
-
-### "Save Thumbnail" button not appearing?
-- Make sure you're on a YouTube video page (URL should contain `/watch?v=`)
-- Refresh the page
-- Check that the extension is enabled in `chrome://extensions/`
 
 ### Popup shows "file could not be accessed"?
 - Make sure you've built the extension: `pnpm run build`
