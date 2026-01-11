@@ -5,7 +5,6 @@
   "description": "Save YouTube video thumbnails and titles to local storage",
   "permissions": [
     "storage",
-    "activeTab",
     "scripting",
     "contextMenus"
   ],
