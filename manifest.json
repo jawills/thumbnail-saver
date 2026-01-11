@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Thumbnail Saver",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Save YouTube video thumbnails and titles to local storage",
   "permissions": [
     "storage",

@@ -7,7 +7,6 @@
     "dev": "vite build --watch",
     "build": "vite build && pnpm run copy-files",
     "copy-files": "node scripts/copy-files.js",
-    "generate-icons": "node scripts/generate-icons.js",
     "preview": "vite preview"
   },
   "dependencies": {
