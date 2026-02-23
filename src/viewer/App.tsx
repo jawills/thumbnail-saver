@@ -26,9 +26,11 @@ import {
   getSettings,
   updateSettings,
   updateThumbnail,
+  addThumbnailsToProject,
+  addTagToThumbnails,
 } from '../utils/storage';
 import type { SavedThumbnail, Project } from '../types/storage';
-import { Moon, Sun, Trash2, Tag, FolderPlus, Plus, Download } from 'lucide-react';
+import { Moon, Sun, Trash2, Tag, FolderPlus, Plus, Download, ChevronDown } from 'lucide-react';
 import { downloadThumbnails } from '../utils/download';
 import { useToast } from '../lib/components/ui/use-toast';
 import { Toaster } from '../lib/components/ui/toaster';
@@ -40,6 +42,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../lib/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '../lib/components/ui/dropdown-menu';
 import { Input } from '../lib/components/ui/input';
 
 function App() {
@@ -66,6 +78,8 @@ function App() {
   const [tagToDelete, setTagToDelete] = useState<string | null>(null);
   const [deleteProjectDialogOpen, setDeleteProjectDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [bulkTagDialogOpen, setBulkTagDialogOpen] = useState(false);
+  const [bulkTagValue, setBulkTagValue] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -162,6 +176,38 @@ function App() {
       setThumbnails(prev => prev.filter(t => !selectedIds.has(t.id)));
       setSelectedIds(new Set());
     }
+  };
+
+  const handleBulkAddToProject = async (projectId: string) => {
+    if (selectedIds.size === 0) return;
+    await addThumbnailsToProject(Array.from(selectedIds), projectId);
+    setThumbnails(prev => prev.map(t =>
+      selectedIds.has(t.id) && !t.projects.includes(projectId)
+        ? { ...t, projects: [...t.projects, projectId] }
+        : t
+    ));
+    setBulkProjectPopoverOpen(false);
+    toast({
+      title: 'Added to project',
+      description: `${selectedIds.size} thumbnail(s) added to project.`,
+    });
+  };
+
+  const handleBulkAddTag = async (tag: string) => {
+    const trimmed = tag.trim();
+    if (selectedIds.size === 0 || !trimmed) return;
+    await addTagToThumbnails(Array.from(selectedIds), trimmed);
+    setThumbnails(prev => prev.map(t =>
+      selectedIds.has(t.id) && !t.tags.includes(trimmed)
+        ? { ...t, tags: [...t.tags, trimmed] }
+        : t
+    ));
+    setBulkTagDialogOpen(false);
+    setBulkTagValue('');
+    toast({
+      title: 'Tag added',
+      description: `"${trimmed}" added to ${selectedIds.size} thumbnail(s).`,
+    });
   };
 
   const handleBulkDownload = async () => {
@@ -459,28 +505,65 @@ function App() {
                   </div>
                   
                   {selectedIds.size > 0 && (
-                    <>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={handleBulkDownload}
-                        disabled={downloading}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        {downloading 
-                          ? `Downloading (${downloadProgress.current}/${downloadProgress.total})`
-                          : `Download (${selectedIds.size})`
-                        }
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={handleBulkDelete}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete ({selectedIds.size})
-                      </Button>
-                    </>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          Actions ({selectedIds.size})
+                          <ChevronDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuItem onClick={() => setSelectedIds(new Set())}>
+                          Clear selection
+                        </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <Tag className="mr-2 h-4 w-4" />
+                            Add tag
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {availableTags.slice(0, 15).map((tag) => (
+                              <DropdownMenuItem key={tag} onClick={() => handleBulkAddTag(tag)}>
+                                {tag}
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setBulkTagDialogOpen(true)}>
+                              New tag…
+                            </DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <FolderPlus className="mr-2 h-4 w-4" />
+                            Add to project
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {projects.length === 0 ? (
+                              <DropdownMenuItem disabled>No projects yet</DropdownMenuItem>
+                            ) : (
+                              projects.map((project) => (
+                                <DropdownMenuItem key={project.id} onClick={() => handleBulkAddToProject(project.id)}>
+                                  {project.name}
+                                </DropdownMenuItem>
+                              ))
+                            )}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuItem onClick={handleBulkDownload} disabled={downloading}>
+                          <Download className="mr-2 h-4 w-4" />
+                          {downloading ? `Downloading (${downloadProgress.current}/${downloadProgress.total})` : 'Download'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleBulkDelete}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </>
               )}
@@ -564,6 +647,30 @@ function App() {
               Create
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkTagDialogOpen} onOpenChange={(open) => { setBulkTagDialogOpen(open); if (!open) setBulkTagValue(''); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add tag to selected</DialogTitle>
+            <DialogDescription>
+              Add a tag to {selectedIds.size} thumbnail(s)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Tag name"
+                value={bulkTagValue}
+                onChange={(e) => setBulkTagValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleBulkAddTag(bulkTagValue); }}
+              />
+              <Button onClick={() => handleBulkAddTag(bulkTagValue)} disabled={!bulkTagValue.trim()}>
+                Add
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

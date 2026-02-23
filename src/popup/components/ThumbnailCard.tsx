@@ -28,6 +28,28 @@ import {
   ContextMenuTrigger,
 } from '../../lib/components/ui/context-menu';
 
+function formatViewCountShort(value: string | undefined): string | undefined {
+  if (!value || !value.trim()) return value;
+  const s = value.trim();
+  const shortMatch = s.match(/\d+(?:\.\d+)?\s*[KMB](?:\s*views?)?/i);
+  if (shortMatch) {
+    let out = shortMatch[0].trim();
+    if (!/views?$/i.test(out)) out += ' views';
+    return out;
+  }
+  const longMatch = s.match(/([\d,]+)\s*views?/i);
+  if (longMatch) {
+    const num = parseInt(longMatch[1].replace(/,/g, ''), 10);
+    if (!isNaN(num) && num > 0) {
+      if (num >= 1e9) return (num / 1e9).toFixed(1).replace(/\.0$/, '') + 'B views';
+      if (num >= 1e6) return (num / 1e6).toFixed(1).replace(/\.0$/, '') + 'M views';
+      if (num >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, '') + 'K views';
+      return num + ' views';
+    }
+  }
+  return s;
+}
+
 interface ThumbnailCardProps {
   thumbnail: SavedThumbnail;
   showTitle: boolean;
@@ -83,12 +105,15 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
     });
   };
 
-  const handleClick = (e: React.MouseEvent) => {
-    // Don't open if clicking checkbox or buttons
+  const handleOpenInNewTab = () => {
+    chrome.runtime.sendMessage({ type: 'OPEN_URL', url: thumbnail.url });
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input[type="checkbox"]')) {
       return;
     }
-    chrome.tabs.create({ url: thumbnail.url });
+    onSelect(thumbnail.id, !isSelected);
   };
 
   const handleTagAdd = () => {
@@ -133,12 +158,12 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   
   const cardContent = (
     <Card 
-      className={`group relative overflow-hidden hover:shadow-lg transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`}
+      className={`group relative overflow-hidden hover:shadow-lg transition-all flex flex-col cursor-pointer ${isSelected ? 'ring-2 ring-primary' : ''}`}
       style={{ width: `${sizeMultiplier * 100}%` }}
-      onClick={showContextMenu ? undefined : handleClick}
+      onClick={handleCardClick}
     >
         <div className="relative aspect-video bg-muted">
-          <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className={`absolute top-2 left-2 z-10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
             <div className="bg-background/90 backdrop-blur-sm border border-border rounded-sm shadow-lg p-0.5 flex items-center justify-center">
               <Checkbox
                 checked={isSelected}
@@ -255,7 +280,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
               className="h-8 w-8"
               onClick={(e) => {
                 e.stopPropagation();
-                handleClick(e);
+                handleOpenInNewTab();
               }}
               title="Open in new tab"
             >
@@ -266,12 +291,17 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
         </div>
         {showTitle && thumbnailsPerRow < 6 && (
           <div className="p-3 space-y-1">
-            <p className="text-sm font-medium line-clamp-2 text-foreground">
+            <p className="text-sm font-medium line-clamp-2 text-foreground" title={thumbnail.title}>
               {thumbnail.title}
             </p>
             {thumbnail.channelName && (
               <p className="text-xs text-muted-foreground">
                 {thumbnail.channelName}
+              </p>
+            )}
+            {(thumbnail.viewCount || thumbnail.subscriberCount) && (
+              <p className="text-xs text-muted-foreground/80">
+                {[formatViewCountShort(thumbnail.viewCount), thumbnail.subscriberCount].filter(Boolean).join(' · ')}
               </p>
             )}
           </div>
@@ -325,7 +355,7 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
           <ContextMenuContent>
             <ContextMenuItem onClick={(e) => {
               e.stopPropagation();
-              handleClick(e);
+              handleOpenInNewTab();
             }}>
               <ExternalLink className="mr-2 h-4 w-4" />
               Open Video

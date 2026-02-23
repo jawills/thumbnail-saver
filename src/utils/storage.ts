@@ -63,6 +63,39 @@ export async function deleteThumbnails(ids: string[]): Promise<void> {
   await chrome.storage.local.set({ [THUMBNAILS_KEY]: filtered });
 }
 
+export async function addThumbnailsToProject(ids: string[], projectId: string): Promise<void> {
+  if (ids.length === 0) return;
+  const thumbnails = await getAllThumbnails();
+  const idSet = new Set(ids);
+  let changed = false;
+  thumbnails.forEach(thumb => {
+    if (idSet.has(thumb.id) && !thumb.projects.includes(projectId)) {
+      thumb.projects = [...thumb.projects, projectId];
+      changed = true;
+    }
+  });
+  if (changed) {
+    await chrome.storage.local.set({ [THUMBNAILS_KEY]: thumbnails });
+  }
+}
+
+export async function addTagToThumbnails(ids: string[], tag: string): Promise<void> {
+  const trimmed = tag.trim();
+  if (ids.length === 0 || !trimmed) return;
+  const thumbnails = await getAllThumbnails();
+  const idSet = new Set(ids);
+  let changed = false;
+  thumbnails.forEach(thumb => {
+    if (idSet.has(thumb.id) && !thumb.tags.includes(trimmed)) {
+      thumb.tags = [...thumb.tags, trimmed];
+      changed = true;
+    }
+  });
+  if (changed) {
+    await chrome.storage.local.set({ [THUMBNAILS_KEY]: thumbnails });
+  }
+}
+
 // Delete a tag from all thumbnails
 export async function deleteTag(tag: string): Promise<void> {
   const thumbnails = await getAllThumbnails();
