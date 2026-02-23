@@ -7,6 +7,8 @@ export interface SavedThumbnail {
   tags: string[];          // auto-extracted + user-defined
   projects: string[];      // project IDs this thumbnail belongs to
   savedAt: number;         // timestamp
+  viewCount?: string;      // e.g. "1.2M views"
+  subscriberCount?: string; // e.g. "500K subscribers"
 }
 
 export interface Project {
