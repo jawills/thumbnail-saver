@@ -27,21 +27,66 @@ type Message = SaveThumbnailMessage | CheckSavedMessage | OpenUrlMessage;
 
 // Injected into YouTube pages to extract video metadata. Must be self-contained (no closure refs).
 function extractYouTubePageData(vidId: string): { title: string; tags: string[]; channelName: string; viewCount?: string; subscriberCount?: string } {
+  function looksLikeDurationOrJunk(s: string): boolean {
+    const t = s.trim();
+    if (!t) return true;
+    if (/^\d+:\d+(:\d+)?$/.test(t)) return true;
+    if (/^Short$/i.test(t)) return true;
+    const durationWord = /^\d+\s+(.+)$/.exec(t);
+    if (durationWord) {
+      const word = durationWord[1].trim().toLowerCase();
+      const durationWords = ['second', 'seconds', 'secondes', 'segundo', 'segundos', 'sekunde', 'sekunden', 'секунд', 'секунды', 'secunda', 'secondi', 'minute', 'minutes', 'minuten', 'minut', 'minuty', 'minutos', 'minuti', 'uur', 'ore', 'hour', 'hours', 'stunde', 'stunden'];
+      if (durationWords.some(w => word === w || word.startsWith(w) || w.startsWith(word))) return true;
+      if (/^[^\p{L}]*[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+[^\p{L}]*$/u.test(word) && t.length < 20) return true;
+    }
+    return false;
+  }
   function looksLikeRealTitle(t: string): boolean {
     if (!t || t === 'YouTube') return false;
-    if (/^\d+\s*seconds?$/i.test(t)) return false;
+    if (looksLikeDurationOrJunk(t)) return false;
     if (/^\d+:\d+$/.test(t)) return false;
-    if (/^Short$/i.test(t)) return false;
     if (/^\d+(\.\d+)?[KMB]?\s*views?$/i.test(t)) return false;
     return true;
   }
   let title = '';
+  let viewCountFromCard = '';
+  let subscriberCountFromCard = '';
   const videoLinks = Array.from(document.querySelectorAll('a[href*="/watch?v="]'));
+  const cardContainerSelectors = 'ytd-thumbnail, ytd-video-meta-block, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-video-renderer, ytd-playlist-video-renderer, ytd-rich-item-renderer';
   for (const link of videoLinks) {
     const href = (link as HTMLAnchorElement).href;
     if (href.includes(`v=${vidId}`)) {
-      const container = link.closest('ytd-thumbnail, ytd-video-meta-block, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-video-renderer, ytd-playlist-video-renderer');
+      const container = link.closest(cardContainerSelectors);
       if (container) {
+        if (!subscriberCountFromCard) {
+          const subM = container.textContent?.match(/[\d.,]+\s*[KMB]?\s*(?:subscribers?|subs?|abonnés?|Abonnenten?|suscriptores?|inscrits?|inscritos?)/i);
+          if (subM) subscriberCountFromCard = subM[0].trim();
+        }
+        if (!viewCountFromCard && /[\d.,]+\s*[KMB]?\s*views?/i.test(container.textContent || '')) {
+          const viewM = container.textContent?.match(/[\d.,]+\s*[KMB]?\s*views?/i);
+          if (viewM) viewCountFromCard = viewM[0].trim();
+        }
+      }
+      const anchorTitle = link.getAttribute('title')?.trim();
+      if (anchorTitle && anchorTitle !== 'YouTube' && looksLikeRealTitle(anchorTitle)) {
+        title = anchorTitle;
+        break;
+      }
+      if (container) {
+        const titleAnchor = container.querySelector('h3 a[href*="/watch?v="]');
+        const titleAnchorHref = titleAnchor?.getAttribute?.('href') ?? '';
+        if (titleAnchor && titleAnchorHref.includes(`v=${vidId}`)) {
+          const fromH3Title = titleAnchor.getAttribute('title')?.trim();
+          if (fromH3Title && fromH3Title !== 'YouTube' && looksLikeRealTitle(fromH3Title)) {
+            title = fromH3Title;
+            break;
+          }
+          const fromH3Text = titleAnchor.textContent?.trim() || '';
+          if (looksLikeRealTitle(fromH3Text)) {
+            title = fromH3Text;
+            break;
+          }
+        }
         const titleEl = container.querySelector('#video-title, a#video-title, yt-formatted-string[id="video-title"], #video-title-link, a[id*="video-title"]');
         if (titleEl) {
           const raw = titleEl.textContent?.trim() || '';
@@ -50,7 +95,10 @@ function extractYouTubePageData(vidId: string): { title: string; tags: string[];
       }
       const ariaLabel = link.getAttribute('aria-label');
       if (ariaLabel && ariaLabel !== 'YouTube') {
-        const parsed = ariaLabel.trim().replace(/\s*-\s*\d+(:\d+)*(\s*seconds?)?(\s*-\s*.*)?$/i, '').trim();
+        let parsed = ariaLabel.trim()
+          .replace(/\s*-\s*\d+(:\d+)*(?:\s*-\s*.*)?$/i, '')
+          .replace(/\s*-\s*\d+\s*(?:seconds?|secondes?|segundos?|sekunden?|minuten?|minutos?|minuti|minute[s]?|minut[ey]?|秒|分|секунд[ы]?|Stunde[n]?|uur|ore?|hour[s]?)\s*$/gi, '')
+          .trim();
         if (looksLikeRealTitle(parsed)) { title = parsed; break; }
         if (looksLikeRealTitle(ariaLabel.trim())) title = ariaLabel.trim();
         break;
@@ -181,38 +229,64 @@ function extractYouTubePageData(vidId: string): { title: string; tags: string[];
   if (!channelName || channelName === 'YouTube') channelName = 'Unknown Channel';
 
   let viewCount = '';
-  const viewCountEl = document.querySelector('ytd-video-view-count-renderer, yt-view-count-renderer, span.view-count');
-  if (viewCountEl) viewCount = viewCountEl.textContent?.trim() || '';
-  if (!viewCount) {
-    const spans = document.querySelectorAll('ytd-video-view-count-renderer span, yt-formatted-string');
-    for (const span of Array.from(spans)) {
-      const t = span.textContent?.trim() || '';
-      if (t && /[\d.,]+\s*[KMB]?\s*views?/i.test(t)) { viewCount = t; break; }
-    }
-  }
-  viewCount = viewCount.replace(/\s+/g, ' ').trim();
-  // Prefer short form only (e.g. "789K views" or "789K") to avoid duplicate long + short
-  const shortMatch = viewCount.match(/\d+(?:\.\d+)?\s*[KMB](?:\s*views?)?/i);
-  if (shortMatch) {
-    viewCount = shortMatch[0].trim();
-    if (!/views?$/i.test(viewCount)) viewCount += ' views';
-  } else if (viewCount && /[\d,]+/.test(viewCount)) {
-    const numStr = viewCount.replace(/[,\s]/g, '').replace(/views?/gi, '').trim();
-    const num = parseInt(numStr, 10);
-    if (!isNaN(num) && num > 0) {
-      if (num >= 1e9) viewCount = (num / 1e9).toFixed(1).replace(/\.0$/, '') + 'B views';
-      else if (num >= 1e6) viewCount = (num / 1e6).toFixed(1).replace(/\.0$/, '') + 'M views';
-      else if (num >= 1e3) viewCount = (num / 1e3).toFixed(1).replace(/\.0$/, '') + 'K views';
-      else viewCount = num + ' views';
-    }
-  }
-
   let subscriberCount = '';
-  const ownerArea = document.querySelector('ytd-video-owner-renderer, ytd-watch-metadata');
-  if (ownerArea) {
-    const subMatch = ownerArea.textContent?.match(/[\d.,]+\s*[KMB]?\s*subscribers?/i);
-    if (subMatch) subscriberCount = subMatch[0].trim();
-  }
+  try {
+    function parseViewCountFromText(text: string): string {
+      if (!text || !/[\d.,]/.test(text)) return '';
+      const t = text.replace(/\s+/g, ' ').trim();
+      const shortMatch = t.match(/\d+(?:\.\d+)?\s*[KMB](?:\s*[^\d\s]{2,20})?/i);
+      if (shortMatch) return shortMatch[0].trim();
+      const numMatch = t.match(/[\d.,]+/);
+      if (numMatch) {
+        const numStr = numMatch[0].replace(/[,\s]/g, '');
+        const num = parseInt(numStr, 10);
+        if (!isNaN(num) && num > 0) {
+          if (num >= 1e9) return (num / 1e9).toFixed(1).replace(/\.0$/, '') + 'B views';
+          if (num >= 1e6) return (num / 1e6).toFixed(1).replace(/\.0$/, '') + 'M views';
+          if (num >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, '') + 'K views';
+          return num + ' views';
+        }
+      }
+      return '';
+    }
+    const viewCountCandidates: string[] = [];
+    if (viewCountFromCard) viewCountCandidates.push(viewCountFromCard);
+    const viewCountEl = document.querySelector('ytd-video-view-count-renderer, yt-view-count-renderer, span.view-count');
+    if (viewCountEl) viewCountCandidates.push(viewCountEl.textContent?.trim() || '');
+    const contentMetadata = document.querySelector('yt-content-metadata-view-model, ytd-video-primary-info-renderer, [id*="content-metadata"]');
+    if (contentMetadata) {
+      const text = contentMetadata.textContent?.trim() || '';
+      if (text) viewCountCandidates.push(text);
+      const data = (contentMetadata as unknown as { viewModel?: { viewCount?: string }; __data?: { viewCount?: string }; data?: { viewCount?: string } }).viewModel
+        ?? (contentMetadata as unknown as { __data?: { viewCount?: string } }).__data
+        ?? (contentMetadata as unknown as { data?: { viewCount?: string } }).data;
+      if (data?.viewCount) viewCountCandidates.push(String(data.viewCount));
+    }
+    if (!viewCountCandidates.some(t => t && /[\d.,]+\s*[KMB]?\s*views?/i.test(t))) {
+      document.querySelectorAll('ytd-video-view-count-renderer span, yt-formatted-string').forEach(span => {
+        const t = span.textContent?.trim() || '';
+        if (t && /[\d.,]/.test(t)) viewCountCandidates.push(t);
+      });
+    }
+    for (const raw of viewCountCandidates) {
+      viewCount = parseViewCountFromText(raw);
+      if (viewCount) break;
+    }
+    if (viewCount && !/views?$/i.test(viewCount)) viewCount += ' views';
+
+    const ownerArea = document.querySelector('ytd-video-owner-renderer, ytd-watch-metadata, yt-content-metadata-view-model');
+    if (ownerArea) {
+      const ownerText = ownerArea.textContent?.trim() || '';
+      const subMatch = ownerText.match(/[\d.,]+\s*[KMB]?\s*subscribers?/i);
+      if (subMatch) subscriberCount = subMatch[0].trim();
+      else {
+        const data = (ownerArea as unknown as { viewModel?: { subscriberCount?: string }; __data?: { subscriberCount?: string } }).viewModel
+          ?? (ownerArea as unknown as { __data?: { subscriberCount?: string } }).__data;
+        if (data?.subscriberCount) subscriberCount = String(data.subscriberCount);
+      }
+    }
+    if (!subscriberCount && subscriberCountFromCard) subscriberCount = subscriberCountFromCard;
+  } catch (_) {}
 
   return { title, tags, channelName, viewCount: viewCount || undefined, subscriberCount: subscriberCount || undefined };
 }

@@ -46,19 +46,54 @@ function getVideoTitle(): string {
   return title;
 }
 
+function looksLikeDurationOrJunk(s: string): boolean {
+  const t = s.trim();
+  if (!t) return true;
+  if (/^\d+:\d+(:\d+)?$/.test(t)) return true;
+  if (/^Short$/i.test(t)) return true;
+  const durationWord = /^\d+\s+(.+)$/.exec(t);
+  if (durationWord) {
+    const word = durationWord[1].trim().toLowerCase();
+    const durationWords = ['second', 'seconds', 'secondes', 'segundo', 'segundos', 'sekunde', 'sekunden', 'секунд', 'секунды', 'secunda', 'secondi', 'minute', 'minutes', 'minuten', 'minut', 'minuty', 'minutos', 'minuti', 'uur', 'ore', 'hour', 'hours', 'stunde', 'stunden'];
+    if (durationWords.some(w => word === w || word.startsWith(w) || w.startsWith(word))) return true;
+  }
+  return false;
+}
+
+function looksLikeRealTitle(s: string): boolean {
+  if (!s || s === 'YouTube') return false;
+  if (looksLikeDurationOrJunk(s)) return false;
+  if (/^\d+:\d+$/.test(s)) return false;
+  if (/^\d+(\.\d+)?[KMB]?\s*views?$/i.test(s)) return false;
+  return true;
+}
+
 // Extract video title from thumbnail element
 function extractVideoTitleFromThumbnail(element: HTMLElement | null): string {
   if (!element) return 'Untitled Video';
-  
-  // Try to find title in nearby elements
+
   const container = element.closest('ytd-thumbnail, ytd-video-meta-block, ytd-compact-video-renderer, ytd-grid-video-renderer');
-  if (container) {
-    const titleElement = container.querySelector('#video-title, a#video-title, yt-formatted-string[id="video-title"]');
-    if (titleElement) {
-      return titleElement.textContent?.trim() || 'Untitled Video';
+  if (!container) return 'Untitled Video';
+
+  const watchLink = container.querySelector('a[href*="/watch?v="]') as HTMLAnchorElement | null;
+  if (watchLink) {
+    const anchorTitle = watchLink.getAttribute('title')?.trim();
+    if (anchorTitle && anchorTitle !== 'YouTube' && looksLikeRealTitle(anchorTitle)) return anchorTitle;
+    const titleAnchor = container.querySelector('h3 a[href*="/watch?v="]') as HTMLAnchorElement | null;
+    if (titleAnchor) {
+      const fromH3Title = titleAnchor.getAttribute('title')?.trim();
+      if (fromH3Title && fromH3Title !== 'YouTube' && looksLikeRealTitle(fromH3Title)) return fromH3Title;
+      const fromH3Text = titleAnchor.textContent?.trim() || '';
+      if (looksLikeRealTitle(fromH3Text)) return fromH3Text;
     }
   }
-  
+
+  const titleElement = container.querySelector('#video-title, a#video-title, yt-formatted-string[id="video-title"]');
+  if (titleElement) {
+    const raw = titleElement.textContent?.trim() || '';
+    if (looksLikeRealTitle(raw)) return raw;
+  }
+
   return 'Untitled Video';
 }
 
